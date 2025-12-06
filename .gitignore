@@ -33,6 +33,7 @@ runs/
 # IDE
 .vscode/
 .idea/
+.claude/                      # Claude Code 本地配置
 
 # Jupyter
 .ipynb_checkpoints/
