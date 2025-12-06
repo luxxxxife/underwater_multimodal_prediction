@@ -1,0 +1,246 @@
+# ====================================================
+# 水下多模态时序预测项目 - 配置文件
+# ====================================================
+
+# ============ 项目路径 ============
+project:
+  root: "D:/Vscodeprogram/underwater_multimodal_prediction"
+  data_root: "D:/水下小目标项目/数据集-收集中/新数据/Sunboat_03-09-2023/2023-09-03-07-58-37"
+  output_dir: "results"
+  checkpoint_dir: "checkpoints"
+  log_dir: "logs"
+
+# ============ 数据配置 ============
+data:
+  # 样本信息
+  total_samples: 3828
+  seq_length: 20          # 输入序列长度（历史帧数）
+  pred_horizon: 5         # 预测步长（未来帧数）
+  stride: 1               # 滑动窗口步长
+
+  # 数据集划分
+  split:
+    train_ratio: 0.70     # 2680样本
+    val_ratio: 0.15       # 574样本
+    test_ratio: 0.15      # 574样本
+    shuffle: false        # 时序数据不打乱
+
+  # 预测目标列名（来自navigation.csv）
+  target_columns:
+    - latitude
+    - longitude
+    - depth
+    - yaw
+    - pitch
+    - roll
+    - velocity_x
+    - velocity_y
+    - velocity_z
+    - altitude
+
+# ============ 图像处理配置 ============
+image:
+  # Camera图像配置
+  camera:
+    target_size: [224, 224]      # HxW
+    normalize_mean: [0.485, 0.456, 0.406]  # ImageNet标准
+    normalize_std: [0.229, 0.224, 0.225]
+    resize_method: "bilinear"
+
+  # Sonar图像配置
+  sonar:
+    use_roi: true                 # 是否使用ROI裁剪
+    roi_coords: [293, 497, 296, 637]  # [y1, y2, x1, x2] 扩大范围，包含完整扇形
+    target_size: [320, 320]      # 保留更多细节
+    normalize_mean: [0.5, 0.5, 0.5]
+    normalize_std: [0.5, 0.5, 0.5]
+    resize_method: "bilinear"
+
+# ============ 模型架构配置 ============
+model:
+  name: "MultimodalLSTMPredictor"
+
+  # CNN特征提取器（Camera和Sonar）
+  cnn_encoder:
+    backbone: "resnet18"          # resnet18, resnet34, resnet50
+    pretrained: true              # 使用ImageNet预训练权重
+    feature_dim: 512
+    freeze_backbone: false        # 是否冻结backbone参数
+    freeze_layers: 0              # 冻结前N层（0=不冻结）
+
+  # Navigation编码器
+  nav_encoder:
+    input_dim: 10                 # 10个navigation特征
+    hidden_dims: [64, 128]        # 隐藏层维度列表
+    output_dim: 128
+    dropout: 0.2
+    activation: "relu"
+
+  # 多模态融合模块
+  fusion:
+    input_dim: 1152               # 512(camera) + 512(sonar) + 128(nav)
+    hidden_dim: 512
+    output_dim: 512
+    dropout: 0.3
+    fusion_type: "concat"         # concat, attention, gated
+
+  # LSTM时序建模
+  lstm:
+    input_size: 512
+    hidden_size: 256
+    num_layers: 2
+    dropout: 0.3
+    bidirectional: false
+
+  # 预测头
+  predictor:
+    input_dim: 256                # LSTM输出维度
+    hidden_dim: 128
+    output_dim: 10                # 10个预测参数
+    pred_horizon: 5               # 预测5个时间步
+    dropout: 0.2
+
+# ============ 训练配置 ============
+training:
+  # 基本参数
+  batch_size: 8                   # RTX 3060 6GB显存，使用较小batch
+  epochs: 50
+  num_workers: 2                  # DataLoader工作进程数
+  pin_memory: true
+
+  # 优化器
+  optimizer:
+    type: "adam"                  # adam, adamw, sgd
+    lr: 0.001
+    weight_decay: 0.0001
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+
+  # 学习率调度器
+  scheduler:
+    type: "cosine"                # cosine, step, plateau
+    T_max: 50                     # CosineAnnealing周期
+    min_lr: 1.0e-6
+    warmup_epochs: 5              # 学习率预热epoch数
+
+  # 损失函数
+  loss:
+    type: "weighted_mse"          # weighted_mse, mse, huber
+    weights:                      # 各类参数的权重
+      position: 2.0               # latitude, longitude, depth
+      orientation: 1.0            # yaw, pitch, roll
+      velocity: 1.0               # velocity_x, velocity_y, velocity_z
+      altitude: 1.0
+    # 每个参数对应的索引
+    param_groups:
+      position: [0, 1, 2]         # lat, lon, depth
+      orientation: [3, 4, 5]      # yaw, pitch, roll
+      velocity: [6, 7, 8]         # vx, vy, vz
+      altitude: [9]
+
+  # 训练技巧
+  gradient_clip: 1.0              # 梯度裁剪（防止LSTM梯度爆炸）
+  mixed_precision: true           # 混合精度训练（节省显存）
+  accumulation_steps: 1           # 梯度累积步数（模拟更大batch）
+
+  # Early Stopping
+  early_stopping:
+    enabled: true
+    patience: 10                  # 验证集loss不下降的epoch容忍度
+    min_delta: 1.0e-5             # 最小改进阈值
+
+  # 模型保存
+  checkpoint:
+    save_freq: 5                  # 每N个epoch保存一次
+    save_best_only: true          # 只保存最优模型
+    monitor: "val_loss"           # 监控指标
+    mode: "min"                   # min或max
+
+# ============ 评估配置 ============
+evaluation:
+  # 评估指标
+  metrics:
+    - mae                         # Mean Absolute Error
+    - rmse                        # Root Mean Square Error
+    - mape                        # Mean Absolute Percentage Error
+
+  # 关键指标阈值（用于判断模型是否达标）
+  thresholds:
+    latitude_rmse: 0.00001        # 约1米
+    longitude_rmse: 0.00001
+    depth_rmse: 0.5               # 米
+    yaw_rmse: 5.0                 # 度
+
+# ============ 可视化配置 ============
+visualization:
+  save_dir: "results/figures"
+  dpi: 150
+  formats: ["png"]                # png, pdf, svg
+  font_size: 12
+
+  # 生成的图表类型
+  plot_types:
+    - training_curves             # 训练/验证loss曲线
+    - position_prediction         # 位置预测对比
+    - orientation_prediction      # 姿态预测对比
+    - velocity_prediction         # 速度预测对比
+    - altitude_prediction         # 高度预测对比
+    - trajectory_map              # 2D轨迹地图
+    - error_heatmap               # 误差热力图
+    - horizon_error_curve         # 时间步误差曲线
+
+# ============ 数据归一化配置 ============
+normalization:
+  # 不同参数类型使用不同归一化方法
+  methods:
+    position:                     # lat, lon, depth
+      type: "minmax"
+      range: [0, 1]
+    orientation:                  # yaw, pitch, roll
+      type: "minmax"
+      range: [-1, 1]
+      convert_to_radians: true
+    velocity:                     # vx, vy, vz
+      type: "zscore"
+    altitude:
+      type: "minmax"
+      range: [0, 1]
+
+  # 统计信息保存路径
+  stats_file: "data/statistics.json"
+
+# ============ 日志配置 ============
+logging:
+  # TensorBoard
+  tensorboard:
+    enabled: true
+    log_dir: "logs/tensorboard"
+    log_interval: 10              # 每N个batch记录一次
+
+  # 控制台输出
+  console:
+    level: "INFO"                 # DEBUG, INFO, WARNING, ERROR
+    format: "%(asctime)s - %(levelname)s - %(message)s"
+
+  # 文件日志
+  file:
+    enabled: true
+    log_file: "logs/training.log"
+    level: "DEBUG"
+
+# ============ 硬件配置 ============
+device:
+  type: "cuda"                    # cuda, cpu
+  gpu_ids: [0]                    # 使用的GPU编号列表
+  deterministic: false            # 是否使用确定性算法（影响速度）
+
+# 随机种子
+seed: 42
+
+# ============ 调试配置 ============
+debug:
+  enabled: false
+  fast_dev_run: false             # 快速运行（只跑几个batch）
+  overfit_batches: 0              # 过拟合测试（只用N个batch）
+  profile: false                  # 性能分析
+  check_grad: false               # 检查梯度

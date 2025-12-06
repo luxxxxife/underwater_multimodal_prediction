@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# 数据文件（太大，不上传）
+data/processed/
+data/raw/
+*.npz
+*.csv
+*.png
+*.jpg
+
+# 模型权重（太大，不上传）
+checkpoints/*.pth
+
+# 日志
+logs/
+*.log
+
+# TensorBoard
+runs/
+
+# 临时文件
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 保留的文件示例（注释掉以允许上传）
+# !data/statistics.json
+# !data/split_indices.json
