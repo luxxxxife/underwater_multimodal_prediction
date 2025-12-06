@@ -565,9 +565,44 @@ seed: 42
 
 ## 快速开始 🚀
 
-### 1. 数据预处理
+### 0. 数据获取
 
-**运行预处理脚本**（在VSCode终端中）：
+**重要**：如果你是从 GitHub 克隆本项目，需要先获取数据。
+
+#### 方式 A：下载预处理后的数据（推荐） ⚡
+
+已预处理的数据包含所有 .npz 序列文件，无需运行预处理脚本（节省 2-3 小时）。
+
+**下载链接**：
+- 预处理数据（processed 文件夹）：[请用户自行填入网盘链接]
+- 原始数据（用于自己预处理）：[请用户自行填入网盘链接]
+
+**安装步骤**：
+1. 下载 `processed.zip`（包含 train/val/test 文件夹）
+2. 解压到项目的 `data/` 文件夹
+3. 最终结构：
+   ```
+   data/processed/
+   ├── train/    # 2655 个 seq_*.npz 文件
+   ├── val/      # 550 个 seq_*.npz 文件
+   └── test/     # 551 个 seq_*.npz 文件
+   ```
+
+#### 方式 B：从原始数据自己预处理
+
+如果你有原始数据或想自己处理：
+
+1. 下载原始数据并放在：`D:\水下小目标项目\数据集-收集中\新数据\Sunboat_03-09-2023\2023-09-03-07-58-37`
+2. 修改 `configs/config.yaml` 中的 `data_root` 路径
+3. 运行：`python preprocess.py`（需要 2-3 小时）
+
+#### 数据文件说明
+
+详见 `data/README.txt` 文件，包含完整的数据结构和参数说明。
+
+---
+
+**运行预处理脚本**（仅在需要自己预处理时）：
 ```bash
 cd D:\Vscodeprogram\underwater_multimodal_prediction
 python preprocess.py
@@ -582,15 +617,9 @@ python preprocess.py
 
 **预计时间**：2-3小时（解除CPU功率限制后）
 
-**输出**：
-```
-data/processed/
-├── train/     # 2655个序列
-├── val/       # 550个序列
-└── test/      # 550个序列
-```
+---
 
-### 2. 模型训练
+### 1. 模型训练
 
 **运行训练脚本**：
 ```bash
@@ -612,7 +641,7 @@ python train.py
 tensorboard --logdir logs/tensorboard
 ```
 
-### 3. 模型评估
+### 2. 模型评估
 
 **运行评估脚本**：
 ```bash
@@ -625,7 +654,7 @@ python evaluate.py
 - 关键指标达标检查
 - 保存预测结果到 `results/predictions/test_predictions.npz`
 
-### 4. 结果可视化
+### 3. 结果可视化
 
 **运行可视化脚本**：
 ```bash
@@ -641,7 +670,7 @@ python visualize.py
 6. `error_heatmap.png` - 误差热力图
 7. `horizon_error_curve.png` - 预测步长误差曲线
 
-### 5. 推理使用
+### 4. 推理使用
 
 **加载模型进行预测**：
 ```python
